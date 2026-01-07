@@ -40,16 +40,6 @@ TalentScout is a production-ready, AI-powered hiring assistant chatbot built wit
     pip install -r requirements.txt
     ```
 
-## API Key Setup
-
-This project uses Google's Generative AI (Gemini). You need an API key from Google AI Studio.
-
-1.  Get your key from [Google AI Studio](https://aistudio.google.com/).
-2.  Rename `.env.example` to `.env`.
-3.  Add your key:
-    ```env
-    GOOGLE_API_KEY=your_actual_api_key_here
-    ```
 
 ## Usage Guide
 
@@ -64,8 +54,6 @@ This project uses Google's Generative AI (Gemini). You need an API key from Goog
     - Provide your Tech Stack (e.g., "Python, Django, React").
     - Answer the generated technical questions.
 
-3.  **View Leaderboard**
-    - The sidebar updates in real-time with top candidates.
 
 ## Technical Architecture
 
