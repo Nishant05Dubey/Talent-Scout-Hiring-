@@ -82,33 +82,51 @@ def generate_feedback(candidate_info: dict, transcript: list) -> str:
     Generates a final feedback report using Gemini.
     """
     # Force reload env
+    # Force reload env
     load_dotenv(override=True)
-    api_key_local = os.getenv("GOOGLE_API_KEY")
+    google_key = os.getenv("GOOGLE_API_KEY")
+    groq_key = os.getenv("GROQ_API_KEY")
     
-    if not api_key_local:
-        return "API Key missing. Please ensure .env file exists with GOOGLE_API_KEY. Cannot generate detailed analysis."
-        
-    genai.configure(api_key=api_key_local)
-        
+    # 1. Helper to format transcript
+    formatted_transcript = ""
+    for msg in transcript:
+        role = msg['role'].upper()
+        content = msg['content']
+        if role in ['USER', 'ASSISTANT']:
+            formatted_transcript += f"{role}: {content}\n"
+            
+    from prompts import ANALYSIS_PROMPT_TEMPLATE
+    prompt = ANALYSIS_PROMPT_TEMPLATE.format(
+        experience=candidate_info.get('experience', 'N/A'),
+        position=candidate_info.get('position', 'N/A'),
+        tech_stack=candidate_info.get('tech_stack', 'N/A'),
+        transcript=formatted_transcript
+    )
+
+    # 2. Try Groq First (if key exists)
+    if groq_key:
+        try:
+            from groq import Groq
+            client = Groq(api_key=groq_key)
+            completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "You are a helpful hiring assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                model="llama3-8b-8192",
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            print(f"Groq Error: {e}. Falling back to Gemini.")
+            # Fall through to Gemini
+
+    # 3. Fallback to Gemini
+    if not google_key:
+        return "API Key missing. Please ensure .env file exists with GOOGLE_API_KEY or GROQ_API_KEY."
+
+    genai.configure(api_key=google_key)
     try:
-        from prompts import ANALYSIS_PROMPT_TEMPLATE
         model = genai.GenerativeModel('gemini-pro')
-        
-        # Format transcript
-        formatted_transcript = ""
-        for msg in transcript:
-            role = msg['role'].upper()
-            content = msg['content']
-            if role in ['USER', 'ASSISTANT']:
-                formatted_transcript += f"{role}: {content}\n"
-        
-        prompt = ANALYSIS_PROMPT_TEMPLATE.format(
-            experience=candidate_info.get('experience', 'N/A'),
-            position=candidate_info.get('position', 'N/A'),
-            tech_stack=candidate_info.get('tech_stack', 'N/A'),
-            transcript=formatted_transcript
-        )
-        
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
