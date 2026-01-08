@@ -1,5 +1,8 @@
 import os
 import json
+import random
+import time
+from pathlib import Path
 import google.generativeai as genai
 from dotenv import load_dotenv
 from prompts import QUESTION_GENERATION_PROMPT_TEMPLATE
@@ -45,13 +48,14 @@ def generate_tech_questions(tech_stack: str, difficulty: int, experience: str, l
     try:
         model = genai.GenerativeModel('gemini-pro')
         
+        seed = int(time.time())
         prompt = QUESTION_GENERATION_PROMPT_TEMPLATE.format(
             num_questions=5, 
             tech_stack=tech_stack,
             experience=experience,
             difficulty=difficulty,
             language=language
-        )
+        ) + f"\n\n(Random Seed: {seed} - Ensure unique questions)"
         
         response = model.generate_content(prompt)
         text_response = response.text
@@ -81,9 +85,10 @@ def generate_feedback(candidate_info: dict, transcript: list) -> str:
     """
     Generates a final feedback report using Gemini.
     """
-    # Force reload env
-    # Force reload env
-    load_dotenv(override=True)
+    # Force reload env with absolute path to be safe
+    env_path = Path(__file__).parent / '.env'
+    load_dotenv(dotenv_path=env_path, override=True)
+    
     google_key = os.getenv("GOOGLE_API_KEY")
     groq_key = os.getenv("GROQ_API_KEY")
     
@@ -103,7 +108,19 @@ def generate_feedback(candidate_info: dict, transcript: list) -> str:
         transcript=formatted_transcript
     )
 
-    # 2. Try Groq First (if key exists)
+    # 2. Try Gemini First (Primary)
+    gemini_error = None
+    if google_key:
+        try:
+            genai.configure(api_key=google_key)
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            gemini_error = str(e)
+            print(f"Gemini Error: {e}. Attempting Fallback to Groq...")
+
+    # 3. Fallback to Groq (if Gemini failed or key missing)
     if groq_key:
         try:
             from groq import Groq
@@ -117,17 +134,9 @@ def generate_feedback(candidate_info: dict, transcript: list) -> str:
             )
             return completion.choices[0].message.content
         except Exception as e:
-            print(f"Groq Error: {e}. Falling back to Gemini.")
-            # Fall through to Gemini
+            return f"Error analyzing session. Gemini failed ({gemini_error}) and Groq failed ({e})."
 
-    # 3. Fallback to Gemini
-    if not google_key:
-        return "API Key missing. Please ensure .env file exists with GOOGLE_API_KEY or GROQ_API_KEY."
-
-    genai.configure(api_key=google_key)
-    try:
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Error analyzing session: {str(e)}"
+    if gemini_error:
+        return f"Error analyzing session (Gemini): {gemini_error}. Configure GROQ_API_KEY for fallback."
+    
+    return "API Key missing. Please ensure .env file exists with GOOGLE_API_KEY or GROQ_API_KEY."

@@ -65,4 +65,5 @@ Analyze the following interview session for a candidate:
 - **Sentiment**: [Your analysis]
 - **Technical Rating**: [1-10]/10
 - **Feedback**: [Detailed feedback]
+- **💡 Improvement Tips**: [3 Specific actionable tips for the candidate]
 """
